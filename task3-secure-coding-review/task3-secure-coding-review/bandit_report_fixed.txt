@@ -1,0 +1,65 @@
+Run started:2026-09-08 17:05:04.992405+00:00
+
+Test results:
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: fixed_app/app.py:16:0
+15	import sqlite3
+16	import subprocess
+17	import urllib.parse
+
+--------------------------------------------------
+>> Issue: [B607:start_process_with_partial_path] Starting a process with a partial executable path
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b607_start_process_with_partial_path.html
+   Location: fixed_app/app.py:118:13
+117	        abort(400, "invalid host")
+118	    result = subprocess.run(
+119	        ["ping", "-c", "1", host], shell=False, capture_output=True, text=True, timeout=5
+120	    )
+121	    return f"<pre>{result.stdout}</pre>"
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: fixed_app/app.py:119:13
+118	    result = subprocess.run(
+119	        ["ping", "-c", "1", host], shell=False, capture_output=True, text=True, timeout=5
+120	    )
+121	    return f"<pre>{result.stdout}</pre>"
+122	
+
+--------------------------------------------------
+>> Issue: [B310:blacklist] Audit url open for permitted schemes. Allowing use of file:/ or custom schemes is often unexpected.
+   Severity: Medium   Confidence: High
+   CWE: CWE-22 (https://cwe.mitre.org/data/definitions/22.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_calls.html#b310-urllib-urlopen
+   Location: fixed_app/app.py:162:9
+161	        abort(400, "destination not allowed")
+162	    with urllib.request.urlopen(url, timeout=5) as resp:
+163	        return resp.read()
+
+--------------------------------------------------
+
+Code scanned:
+	Total lines of code: 131
+	Total lines skipped (#nosec): 0
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 1
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 3
+		Medium: 1
+		High: 0
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 0
+		Medium: 0
+		High: 4
+Files skipped (0):
