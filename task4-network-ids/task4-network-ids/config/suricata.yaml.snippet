@@ -1,0 +1,73 @@
+# =============================================================================
+# suricata.yaml.snippet
+# Key sections to edit in /etc/suricata/suricata.yaml after install.
+# This is NOT a full config file — merge these blocks into the existing one
+# (Suricata ships a large default suricata.yaml; don't replace it wholesale).
+# =============================================================================
+
+# 1) Tell Suricata what your protected network actually is.
+#    Replace with your LAN/VM range — used by $HOME_NET in rules.
+vars:
+  address-groups:
+    HOME_NET: "[192.168.1.0/24]"     # <-- set to your lab network
+    EXTERNAL_NET: "!$HOME_NET"
+
+# 2) Capture interface (change ens33/eth0 to your NIC, `ip a` to check).
+af-packet:
+  - interface: eth0
+    cluster-id: 99
+    cluster-type: cluster_flow
+    defrag: yes
+
+# 3) Load community rules + our custom lab rules together.
+default-rule-path: /etc/suricata/rules
+rule-files:
+  - suricata.rules          # Emerging Threats Open ruleset (via suricata-update)
+  - local.rules              # our custom rules — copy rules/local.rules here
+
+# 4) Output: eve.json is the single structured log everything downstream
+#    (dashboard script, SIEM, jq queries) reads from.
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      types:
+        - alert:
+            payload: yes            # include raw payload (base64) for triage
+            payload-printable: yes
+            packet: yes
+            metadata: yes
+        - http:
+            extended: yes
+        - dns:
+            query: yes
+            answer: yes
+        - tls:
+            extended: yes
+        - flow:
+        - stats:
+            totals: yes
+            threads: no
+
+  - stats:
+      enabled: yes
+      interval: 30
+
+  - fast-log:
+      enabled: yes
+      filename: fast.log        # simple one-line-per-alert, good for tail -f
+
+# 5) Performance / runmode (fine for a single-VM lab).
+runmode: autofp
+max-pending-packets: 1024
+
+# 6) Logging verbosity for troubleshooting the engine itself (not traffic).
+logging:
+  default-log-level: notice
+  outputs:
+    - console:
+        enabled: yes
+    - file:
+        enabled: yes
+        filename: /var/log/suricata/suricata.log

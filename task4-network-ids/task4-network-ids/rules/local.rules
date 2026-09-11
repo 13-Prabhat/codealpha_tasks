@@ -1,0 +1,99 @@
+# =============================================================================
+# local.rules — custom Suricata detection rules
+# Load path (Ubuntu default): /etc/suricata/rules/local.rules
+# Referenced from suricata.yaml under `rule-files:` — see config/suricata.yaml.snippet
+# SIDs 9000000-9000999 reserved for this lab's custom/local rules (avoids
+# clashing with the Emerging Threats Open ruleset, which uses 2000000+).
+# =============================================================================
+
+# --- Reconnaissance / scanning -----------------------------------------------
+
+alert tcp any any -> $HOME_NET any (msg:"LOCAL Possible Nmap SYN scan detected"; \
+  flags:S; threshold: type both, track by_src, count 20, seconds 5; \
+  classtype:attempted-recon; sid:9000001; rev:1;)
+
+alert icmp any any -> $HOME_NET any (msg:"LOCAL ICMP Ping Sweep detected"; \
+  itype:8; threshold: type both, track by_src, count 10, seconds 5; \
+  classtype:attempted-recon; sid:9000002; rev:1;)
+
+alert tcp any any -> $HOME_NET any (msg:"LOCAL Possible TCP NULL scan"; \
+  flags:0; threshold: type both, track by_src, count 5, seconds 10; \
+  classtype:attempted-recon; sid:9000003; rev:1;)
+
+alert tcp any any -> $HOME_NET any (msg:"LOCAL Possible TCP XMAS scan"; \
+  flags:FPU; threshold: type both, track by_src, count 5, seconds 10; \
+  classtype:attempted-recon; sid:9000004; rev:1;)
+
+# --- Brute force ---------------------------------------------------------
+
+alert tcp any any -> $HOME_NET 22 (msg:"LOCAL Possible SSH brute force"; \
+  flow:to_server; threshold: type both, track by_src, count 5, seconds 60; \
+  classtype:attempted-admin; sid:9000010; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"LOCAL Possible HTTP login brute force"; \
+  flow:to_server,established; http.method; content:"POST"; \
+  http.uri; content:"login"; nocase; \
+  threshold: type both, track by_src, count 10, seconds 30; \
+  classtype:attempted-admin; sid:9000011; rev:1;)
+
+# --- Web application attacks (maps to Task 3 findings) --------------------
+
+alert http any any -> $HOME_NET any (msg:"LOCAL SQL Injection attempt (UNION SELECT)"; \
+  flow:to_server,established; http.uri; content:"UNION"; nocase; content:"SELECT"; nocase; distance:0; \
+  classtype:web-application-attack; sid:9000020; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"LOCAL SQL Injection attempt (quote/comment)"; \
+  flow:to_server,established; http.uri; pcre:"/(\%27|\')\s*(--|\#|\/\*)/i"; \
+  classtype:web-application-attack; sid:9000021; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"LOCAL Possible XSS attempt (script tag)"; \
+  flow:to_server,established; http.uri; content:"<script"; nocase; \
+  classtype:web-application-attack; sid:9000022; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"LOCAL Possible command injection attempt"; \
+  flow:to_server,established; http.uri; pcre:"/(;|\||\$\(|`)\s*(cat|ls|whoami|id|wget|curl|nc)\b/i"; \
+  classtype:web-application-attack; sid:9000023; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"LOCAL Path traversal attempt"; \
+  flow:to_server,established; http.uri; content:"../"; \
+  classtype:web-application-attack; sid:9000024; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"LOCAL Suspicious Python pickle-style payload to /cart"; \
+  flow:to_server,established; http.uri; content:"/cart"; http.request_body; content:"cos|0a|system"; \
+  classtype:web-application-attack; sid:9000025; rev:1;)
+
+# --- Malware / C2 style indicators -----------------------------------------
+
+alert dns any any -> any any (msg:"LOCAL DNS query for suspicious TLD (.xyz/.top/.tk)"; \
+  dns.query; content:".xyz"; nocase; \
+  classtype:bad-unknown; sid:9000030; rev:1;)
+alert dns any any -> any any (msg:"LOCAL DNS query for suspicious TLD (.top)"; \
+  dns.query; content:".top"; nocase; \
+  classtype:bad-unknown; sid:9000031; rev:1;)
+
+alert tcp $HOME_NET any -> any any (msg:"LOCAL Large outbound data transfer (possible exfiltration)"; \
+  flow:to_server,established; dsize:>100000; \
+  classtype:policy-violation; sid:9000032; rev:1;)
+
+alert tls any any -> any any (msg:"LOCAL TLS connection with self-signed/suspicious JA3 pattern placeholder"; \
+  flow:to_server; tls.fingerprint; content:!"trusted"; \
+  classtype:bad-unknown; sid:9000033; rev:1;)
+
+# --- Policy / misconfig -----------------------------------------------------
+
+alert tcp any any -> $HOME_NET 23 (msg:"LOCAL Telnet connection attempt (insecure protocol)"; \
+  flow:to_server; classtype:policy-violation; sid:9000040; rev:1;)
+
+alert tcp any any -> $HOME_NET 21 (msg:"LOCAL FTP connection attempt (insecure protocol)"; \
+  flow:to_server; classtype:policy-violation; sid:9000041; rev:1;)
+
+# =============================================================================
+# NOTES
+# - `threshold:` blocks turn noisy per-packet matches into rate-based alerts
+#   (e.g. "20 SYNs from one host in 5s") so a single scan produces one alert,
+#   not thousands.
+# - Custom SIDs (900000x) are picked below Suricata's reserved local range
+#   so they never collide with the community Emerging Threats ruleset.
+# - Test any new rule offline first: `suricata -T -c /etc/suricata/suricata.yaml`
+#   validates syntax without touching a live interface.
+# =============================================================================
